@@ -37,7 +37,6 @@ A full-stack volunteer management application built using the PERN stack (Postgr
 ### Security
 - Parameterized SQL queries to prevent SQL injection attacks
 - Input validation for user-provided data
-- Arcjet integration for rate limiting and request protection
 
 ---
 
@@ -61,7 +60,6 @@ A full-stack volunteer management application built using the PERN stack (Postgr
 - Helmet
 - Morgan
 - Dotenv
-- Arcjet
 
 ---
 
@@ -107,8 +105,8 @@ Volunteer_Events(volunteer_id, event_id)
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/J-Y-W/CS-348-Final-Project.git
-cd CS-348-Final-Project
+git clone https://github.com/J-Y-W/Volunteer-Management-System.git
+cd Volunteer-Management-System
 ```
 
 ### Install Backend Dependencies
@@ -136,7 +134,6 @@ Example:
 ```env
 PORT=5000
 DATABASE_URL=your_neon_database_url
-ARCJET_KEY=your_arcjet_key
 ```
 
 ---
@@ -196,25 +193,6 @@ http://localhost:5173
 | GET | /api/events | Get all events |
 | POST | /api/events | Create an event |
 | GET | /api/events/:id/volunteers | Get all volunteers attending a specific event |
-
----
-
-## Example Report
-
-Users can generate a report by specifying:
-
-- Minimum Age
-- Maximum Age
-
-The application returns:
-
-- Volunteer ID
-- Name
-- Email
-- Phone Number
-- Age
-
-for all volunteers whose ages fall within the selected range.
 
 ---
 
