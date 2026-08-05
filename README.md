@@ -55,12 +55,6 @@ A full-stack volunteer management application built using the PERN stack (Postgr
 - PostgreSQL
 - Neon Database
 
-### Middleware
-- CORS
-- Helmet
-- Morgan
-- Dotenv
-
 ---
 
 ## Database Design
