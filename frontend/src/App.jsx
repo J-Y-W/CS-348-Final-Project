@@ -1,238 +1,171 @@
-import React, { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { ToastProvider, useToast } from "./context/ToastContext.jsx";
+import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
+import { api } from "./lib/api.js";
+import Nav from "./components/Nav.jsx";
+import StatCard from "./components/StatCard.jsx";
+import RosterView from "./components/RosterView.jsx";
+import EventsView from "./components/EventsView.jsx";
+import ReportsView from "./components/ReportsView.jsx";
+import LoginForm from "./components/LoginForm.jsx";
 
-function App() {
-  // --- CRUD state ---
+function Dashboard() {
+  const toast = useToast();
+  const { isAuthenticated, email, logout } = useAuth();
+  const [showLogin, setShowLogin] = useState(false);
+  const [tab, setTab] = useState("roster");
   const [volunteers, setVolunteers] = useState([]);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", age: "" });
-  const [editingId, setEditingId] = useState(null);
-
-  // --- Report state ---
-  const [minAge, setMinAge] = useState("");
-  const [maxAge, setMaxAge] = useState("");
-  const [report, setReport] = useState([]);
-
-  // --- Event attendance state ---
   const [events, setEvents] = useState([]);
-  const [selectedEventId, setSelectedEventId] = useState("");
-  const [volunteersForEvent, setVolunteersForEvent] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const API_URL = "http://localhost:5000/api/volunteers";
-  const EVENTS_URL = "http://localhost:5000/api/events";
-
-  // --- Fetch all volunteers ---
-  const fetchVolunteers = async () => {
+  const loadAll = async () => {
+    setLoading(true);
     try {
-      const res = await fetch(API_URL);
-      const data = await res.json();
-      if (data.success) setVolunteers(data.data);
-    } catch (error) {
-      console.error("Failed to fetch volunteers:", error);
-    }
-  };
-
-  // --- Fetch all events ---
-  const fetchEvents = async () => {
-    try {
-      const res = await fetch(EVENTS_URL);
-      const data = await res.json();
-      if (data.success) setEvents(data.data);
-    } catch (error) {
-      console.error("Failed to fetch events:", error);
+      const [v, e] = await Promise.all([api.volunteers.list(), api.events.list()]);
+      setVolunteers(v);
+      setEvents(e);
+    } catch (err) {
+      toast.error(err.message || "Couldn't load data from the server.");
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchVolunteers();
-    fetchEvents();
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // --- Fetch volunteers for selected event ---
-  const fetchVolunteersForEvent = async (eventId) => {
-    if (!eventId) return;
+  const handleCreateVolunteer = async (payload) => {
     try {
-      const res = await fetch(`${EVENTS_URL}/${eventId}/volunteers`);
-      const data = await res.json();
-      if (data.success) setVolunteersForEvent(data.data);
-    } catch (error) {
-      console.error("Failed to fetch volunteers for event:", error);
+      const created = await api.volunteers.create(payload);
+      setVolunteers((prev) => [...prev, created]);
+      toast.success(`${created.name} added to the roster.`);
+    } catch (err) {
+      toast.error(err.message || "Couldn't add volunteer.");
+      throw err;
     }
   };
 
-  // --- Form handlers ---
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const method = editingId ? "PUT" : "POST";
-    const url = editingId ? `${API_URL}/${editingId}` : API_URL;
-
+  const handleUpdateVolunteer = async (id, payload) => {
     try {
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Failed");
-      setForm({ name: "", email: "", phone: "", age: "" });
-      setEditingId(null);
-      fetchVolunteers();
-    } catch (error) {
-      console.error(error);
+      const updated = await api.volunteers.update(id, payload);
+      setVolunteers((prev) => prev.map((v) => (v.volunteer_id === id ? updated : v)));
+      toast.success(`${updated.name} updated.`);
+    } catch (err) {
+      toast.error(err.message || "Couldn't update volunteer.");
+      throw err;
     }
   };
 
-  const handleEdit = (v) => {
-    setForm({ name: v.name, email: v.email, phone: v.phone, age: v.age });
-    setEditingId(v.volunteer_id);
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this volunteer?")) return;
+  const handleDeleteVolunteer = async (id) => {
     try {
-      const res = await fetch(`${API_URL}/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Failed to delete");
-      fetchVolunteers();
-    } catch (error) {
-      console.error(error);
+      await api.volunteers.remove(id);
+      setVolunteers((prev) => prev.filter((v) => v.volunteer_id !== id));
+      toast.success("Volunteer removed.");
+    } catch (err) {
+      toast.error(err.message || "Couldn't delete volunteer.");
     }
   };
 
-  // --- Report handler ---
-  const handleGenerateReport = async () => {
-    if (!minAge || !maxAge) {
-      alert("Please enter both minimum and maximum age");
-      return;
-    }
-
+  const handleCreateEvent = async (payload) => {
     try {
-      const res = await fetch(`${API_URL}/report`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ minAge, maxAge }),
-      });
-
-      const data = await res.json();
-      if (data.success) setReport(data.data);
-      else alert("Failed to fetch report");
-    } catch (error) {
-      console.error(error);
+      const created = await api.events.create(payload);
+      setEvents((prev) =>
+        [...prev, created].sort((a, b) => new Date(a.event_date) - new Date(b.event_date))
+      );
+      toast.success(`${created.name} scheduled.`);
+      return created;
+    } catch (err) {
+      toast.error(err.message || "Couldn't create event.");
+      return null;
     }
   };
+
+  const upcomingCount = events.filter((e) => new Date(e.event_date) >= new Date().setHours(0, 0, 0, 0)).length;
+  const avgAge = volunteers.length
+    ? Math.round(volunteers.reduce((sum, v) => sum + Number(v.age || 0), 0) / volunteers.length)
+    : 0;
+
+  const tabs = [
+    { id: "roster", label: "Roster", count: volunteers.length },
+    { id: "events", label: "Events", count: events.length },
+    { id: "reports", label: "Reports" },
+  ];
 
   return (
-    <div style={{ maxWidth: "800px", margin: "40px auto", fontFamily: "Arial" }}>
-      <h1>Volunteer Manager</h1>
+    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+      <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="font-mono text-xs uppercase tracking-[0.2em] text-accent">Field Roster</p>
+          <h1 className="mt-1 font-display text-3xl text-ink sm:text-4xl">Volunteer Management</h1>
+          <p className="mt-2 max-w-xl text-sm text-ink-soft">
+            Track your roster, log event attendance, and pull reports — all in one place.
+          </p>
+        </div>
 
-      {/* --- Volunteer Form --- */}
-      <form onSubmit={handleSubmit} style={{ marginBottom: "20px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-        <input type="text" name="name" placeholder="Name" value={form.name} onChange={handleChange} required />
-        <input type="email" name="email" placeholder="Email" value={form.email} onChange={handleChange} required />
-        <input type="text" name="phone" placeholder="Phone" value={form.phone} onChange={handleChange} required />
-        <input type="number" name="age" placeholder="Age" value={form.age} onChange={handleChange} required />
-        <button type="submit">{editingId ? "Update" : "Add"}</button>
-        {editingId && <button type="button" onClick={() => { setForm({ name: "", email: "", phone: "", age: "" }); setEditingId(null); }}>Cancel</button>}
-      </form>
+        <div className="shrink-0">
+          {isAuthenticated ? (
+            <div className="flex items-center gap-3 rounded-md border border-line bg-surface px-3 py-2">
+              <span className="font-mono text-xs text-ink-soft">{email}</span>
+              <button
+                onClick={logout}
+                className="rounded-md px-2 py-1 text-xs font-medium text-ink-soft hover:bg-bg hover:text-ink"
+              >
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowLogin(true)}
+              className="rounded-md border border-line bg-surface px-4 py-2 text-sm font-medium text-ink hover:border-primary/40"
+            >
+              Sign in
+            </button>
+          )}
+        </div>
+      </header>
 
-      {/* --- Volunteer Table --- */}
-      <h2>All Volunteers</h2>
-      <table border="1" cellPadding="8" style={{ width: "100%", textAlign: "left", borderCollapse: "collapse", marginBottom: "40px" }}>
-        <thead>
-          <tr>
-            <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Age</th><th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {volunteers.map((v) => (
-            <tr key={v.volunteer_id}>
-              <td>{v.volunteer_id}</td>
-              <td>{v.name}</td>
-              <td>{v.email}</td>
-              <td>{v.phone}</td>
-              <td>{v.age}</td>
-              <td>
-                <button onClick={() => handleEdit(v)}>Edit</button>
-                <button onClick={() => handleDelete(v.volunteer_id)}>Delete</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {/* --- Age Report --- */}
-      <h2>Volunteer Age Report</h2>
-      <div style={{ marginBottom: "20px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-        <input type="number" placeholder="Youngest Age" value={minAge} onChange={(e) => setMinAge(e.target.value)} />
-        <input type="number" placeholder="Oldest Age" value={maxAge} onChange={(e) => setMaxAge(e.target.value)} />
-        <button onClick={handleGenerateReport}>Generate Report</button>
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Volunteers" value={volunteers.length} />
+        <StatCard label="Upcoming events" value={upcomingCount} />
+        <StatCard label="Total events" value={events.length} />
+        <StatCard label="Average age" value={avgAge || "—"} />
       </div>
 
-      {report.length > 0 && (
-        <>
-          <p>Total Volunteers in Range: {report.length}</p>
-          <table border="1" cellPadding="8" style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Age</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.map((v) => (
-                <tr key={v.volunteer_id}>
-                  <td>{v.volunteer_id}</td>
-                  <td>{v.name}</td>
-                  <td>{v.email}</td>
-                  <td>{v.phone}</td>
-                  <td>{v.age}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-
-      {/* --- Volunteers by Event --- */}
-      <h2>Volunteers by Event</h2>
-      <div style={{ marginBottom: "20px" }}>
-        <select
-          value={selectedEventId}
-          onChange={(e) => {
-            setSelectedEventId(e.target.value);
-            fetchVolunteersForEvent(e.target.value);
-          }}
-        >
-          <option value="">Select an event</option>
-          {events.map((ev) => (
-            <option key={ev.event_id} value={ev.event_id}>
-              {ev.name} ({ev.event_date})
-            </option>
-          ))}
-        </select>
+      <Nav tabs={tabs} active={tab} onChange={setTab} />
+      <div className="rounded-b-lg rounded-tr-lg border border-line bg-surface p-5 sm:p-6">
+        {tab === "roster" && (
+          <RosterView
+            volunteers={volunteers}
+            loading={loading}
+            onCreate={handleCreateVolunteer}
+            onUpdate={handleUpdateVolunteer}
+            onDelete={handleDeleteVolunteer}
+          />
+        )}
+        {tab === "events" && (
+          <EventsView
+            events={events}
+            volunteers={volunteers}
+            loading={loading}
+            onCreateEvent={handleCreateEvent}
+          />
+        )}
+        {tab === "reports" && <ReportsView volunteers={volunteers} />}
       </div>
 
-      {volunteersForEvent.length > 0 && (
-        <table border="1" cellPadding="8" style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Age</th>
-            </tr>
-          </thead>
-          <tbody>
-            {volunteersForEvent.map((v) => (
-              <tr key={v.volunteer_id}>
-                <td>{v.volunteer_id}</td>
-                <td>{v.name}</td>
-                <td>{v.email}</td>
-                <td>{v.phone}</td>
-                <td>{v.age}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {showLogin && <LoginForm onClose={() => setShowLogin(false)} />}
     </div>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <ToastProvider>
+      <AuthProvider>
+        <Dashboard />
+      </AuthProvider>
+    </ToastProvider>
+  );
+}

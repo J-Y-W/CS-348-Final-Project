@@ -1,164 +1,109 @@
 # Volunteer Management System
 
-A full-stack volunteer management application built using the PERN stack (PostgreSQL, Express.js, React, and Node.js). This application allows organizations to manage volunteers, track event attendance, and generate volunteer reports through an intuitive web interface.
+A full-stack volunteer management application built on the PERN stack (PostgreSQL, Express.js, React, Node.js). Organizations can manage a volunteer roster, schedule events, track attendance, and generate age-range reports through a dashboard interface.
 
 ## Features
 
-### Volunteer Management
-- Add new volunteers
-- View all volunteers
-- Update volunteer information
-- Delete volunteers
-- Store volunteer details including:
-  - Volunteer ID
-  - Name
-  - Age
-  - Email
-  - Phone Number
+### Volunteer Roster
+- Add, edit, and remove volunteers with client- and server-side validation
+- Search the roster by name or email
+- Duplicate-email detection
 
 ### Event Management
-- Store volunteer events
-- Track event information including:
-  - Event ID
-  - Event Name
-  - Event Date
+- Create events with a name and date
+- Register or remove volunteer attendance per event
+- View attendee lists per event
 
-### Attendance Tracking
-- Maintain volunteer attendance records through a many-to-many relationship
-- View all volunteers who attended a selected event
-- Populate event selection dynamically from the database
+### Authentication
+- Single-admin JWT authentication protects all write actions (create/edit/delete volunteers, create events, register/remove attendance)
+- Anyone can browse the roster, events, and reports without signing in — only mutations require login
+- Passwords are bcrypt-hashed; the admin account is seeded automatically on server startup from `ADMIN_EMAIL`/`ADMIN_PASSWORD`
+- Login is rate-limited (10 attempts / 15 min) to slow brute-force attempts
 
 ### Reporting
-- Generate reports based on volunteer age ranges
-- Filter volunteers between a minimum and maximum age
-- Display all matching volunteer information
-- Show summary statistics such as total volunteers returned
+- Age-distribution chart across the whole roster
+- Filterable age-range report with summary counts
 
-### Security
-- Parameterized SQL queries to prevent SQL injection attacks
-- Input validation for user-provided data
+### Engineering details worth noting
+- Parameterized SQL queries throughout (no string-built SQL)
+- Centralized API client with typed error handling on the frontend
+- Toast notifications and inline form validation instead of `alert()`/`window.confirm()`
+- Loading skeletons and empty states for every data view
 
 ---
 
-## Technologies Used
+## Tech Stack
 
-### Frontend
-- React
-- JavaScript
-- Vite
-
-### Backend
-- Node.js
-- Express.js
-
-### Database
-- PostgreSQL
-- Neon Database
+**Frontend:** React, Vite, Tailwind CSS
+**Backend:** Node.js, Express
+**Database:** PostgreSQL (Neon serverless)
 
 ---
 
 ## Database Design
 
-### Volunteers
-
 ```
 Volunteers(volunteer_id, name, age, email, phone)
-```
-
-- volunteer_id is the primary key
-- name stores the volunteer's name
-- age stores the volunteer's age
-- email stores the volunteer's email address
-- phone stores the volunteer's phone number
-
-### Events
-
-```
 Events(event_id, name, event_date)
+Volunteer_Events(volunteer_id, event_id)   -- composite PK, many-to-many attendance
 ```
-
-- event_id is the primary key
-- name stores the name of the event
-- event_date stores the date of the event
-
-### Volunteer_Events
-
-```
-Volunteer_Events(volunteer_id, event_id)
-```
-
-- (volunteer_id, event_id) is the composite primary key
-- volunteer_id references Volunteers(volunteer_id)
-- event_id references Events(event_id)
-- stores attendance records linking volunteers to events
 
 ---
 
-## Installation
+## Local Setup
 
-### Clone the Repository
+### 1. Clone and install
 
 ```bash
 git clone https://github.com/J-Y-W/Volunteer-Management-System.git
 cd Volunteer-Management-System
+
+cd backend && npm install
+cd ../frontend && npm install
 ```
 
-### Install Backend Dependencies
+### 2. Configure environment variables
 
-```bash
-cd backend
-npm install
-```
-
-### Install Frontend Dependencies
-
-```bash
-cd ../frontend
-npm install
-```
-
----
-
-## Environment Variables
-
-Create a `.env` file in the backend directory.
-
-Example:
+**backend/.env** (copy from `backend/.env.example`):
 
 ```env
 PORT=5000
-DATABASE_URL=your_neon_database_url
+DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
+FRONTEND_URL=
+JWT_SECRET=
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=change-me-before-deploying
 ```
 
----
-
-## Running the Application
-
-### Start Backend Server
+`DATABASE_URL` is your Neon connection string. Leave `FRONTEND_URL` empty locally; set it to your deployed frontend URL in production to restrict CORS. Generate `JWT_SECRET` with:
 
 ```bash
-cd backend
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+
+`ADMIN_EMAIL`/`ADMIN_PASSWORD` are seeded into the database as the one admin account on first startup (only if that email doesn't already exist) — sign in with these credentials to add/edit/delete data. Change the default password before deploying anywhere public.
+
+**frontend/.env** (copy from `frontend/.env.example`):
+
+```env
+VITE_API_URL=http://localhost:5000/api
+```
+
+### 3. Run
+
+```bash
+# from the repo root, runs both servers concurrently
 npm run dev
 ```
 
-Backend runs on:
-
-```
-http://localhost:5000
-```
-
-### Start Frontend
+Or separately:
 
 ```bash
-cd frontend
-npm run dev
+cd backend && npm run dev     # http://localhost:5000
+cd frontend && npm run dev    # http://localhost:5173
 ```
 
-Frontend runs on:
-
-```
-http://localhost:5173
-```
+Tables (`volunteers`, `events`, `volunteer_events`) and indexes are created automatically on server startup if they don't already exist.
 
 ---
 
@@ -167,37 +112,49 @@ http://localhost:5173
 ### Volunteers
 
 | Method | Endpoint | Description |
-|----------|----------|----------|
+|--------|----------|-------------|
 | GET | /api/volunteers | Get all volunteers |
 | GET | /api/volunteers/:id | Get a volunteer by ID |
-| POST | /api/volunteers | Create a volunteer |
-| PUT | /api/volunteers/:id | Update a volunteer |
-| DELETE | /api/volunteers/:id | Delete a volunteer |
-
-### Reports
-
-| Method | Endpoint | Description |
-|----------|----------|----------|
+| POST | /api/volunteers | Create a volunteer *(auth required)* |
+| PUT | /api/volunteers/:id | Update a volunteer *(auth required)* |
+| DELETE | /api/volunteers/:id | Delete a volunteer *(auth required)* |
 | POST | /api/volunteers/report | Generate an age-range report |
 
 ### Events
 
 | Method | Endpoint | Description |
-|----------|----------|----------|
+|--------|----------|-------------|
 | GET | /api/events | Get all events |
-| POST | /api/events | Create an event |
-| GET | /api/events/:id/volunteers | Get all volunteers attending a specific event |
+| POST | /api/events | Create an event *(auth required)* |
+| GET | /api/events/:id/volunteers | Get all volunteers attending an event |
+| POST | /api/events/:id/volunteers | Register a volunteer's attendance (`{ volunteer_id }`) *(auth required)* |
+| DELETE | /api/events/:id/volunteers/:volunteerId | Remove an attendance record *(auth required)* |
+
+### Auth
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/auth/login | Sign in with `{ email, password }`, returns a JWT |
+
+Include the token on protected requests as `Authorization: Bearer <token>`.
+
+---
+
+## Deployment
+
+- **Frontend:** deploy `frontend/` to Vercel or Netlify. Set `VITE_API_URL` to your deployed backend's `/api` URL.
+- **Backend:** deploy `backend/` to Render or Railway. Set `DATABASE_URL`, `FRONTEND_URL` (your deployed frontend origin), `JWT_SECRET`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD`.
+- **Database:** already on Neon; no separate hosting needed.
+
+If your backend host sleeps on inactivity (e.g. Render's free tier), expect a slow first request after idle periods.
 
 ---
 
 ## Future Enhancements
 
-- Event creation and editing through the frontend
-- Attendance registration interface
-- Volunteer search functionality
-- Sorting and filtering options
-- Dashboard analytics and visualizations
-- Authentication and user roles
+- Pagination and sorting on the volunteer roster
+- Automated tests (API + component)
+- Multiple admin accounts / role-based permissions (currently a single seeded admin)
 
 ---
 
@@ -205,5 +162,5 @@ http://localhost:5173
 
 Justin Wang
 
-Purdue University  
+Purdue University
 B.S. Computer Science

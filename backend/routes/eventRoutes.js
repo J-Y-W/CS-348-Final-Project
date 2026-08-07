@@ -1,15 +1,22 @@
 import express from 'express';
-import { getEvents, getVolunteersForEvent, createEvent } from '../controllers/eventController.js';
+import {
+  getEvents,
+  getVolunteersForEvent,
+  createEvent,
+  registerAttendance,
+  removeAttendance,
+} from '../controllers/eventController.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Get all events
+// Reads are public so the demo is browsable without signing in
 router.get("/", getEvents);
-
-// Create a new event
-router.post("/", createEvent);
-
-// Get all volunteers for a specific event
 router.get("/:id/volunteers", getVolunteersForEvent);
+
+// Writes require a signed-in admin
+router.post("/", requireAuth, createEvent);
+router.post("/:id/volunteers", requireAuth, registerAttendance);
+router.delete("/:id/volunteers/:volunteerId", requireAuth, removeAttendance);
 
 export default router;
