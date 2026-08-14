@@ -2,6 +2,10 @@
 
 A full-stack volunteer management application built on the PERN stack (PostgreSQL, Express.js, React, Node.js). Organizations can manage a volunteer roster, schedule events, track attendance, and generate age-range reports through a dashboard interface.
 
+**[Live Demo](https://volunteer-management-vercel.vercel.app/)**
+ 
+> Note: the backend is hosted on Render's free tier, which sleeps after periods of inactivity. The first request after idle time may take ~30 seconds to respond while it wakes up.
+
 ## Features
 
 ### Volunteer Roster
